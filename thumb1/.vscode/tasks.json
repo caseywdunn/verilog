@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "sim (iverilog)",
+      "type": "shell",
+      "command": "iverilog -g2012 -o sim.out tb.sv tiny_thumb_core.sv tiny_mem_model.sv && vvp sim.out",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "view waves (gtkwave)",
+      "type": "shell",
+      "command": "gtkwave dump.vcd",
+      "problemMatcher": []
+    }
+  ]
+}
