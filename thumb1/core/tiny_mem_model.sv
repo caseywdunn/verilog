@@ -3,8 +3,8 @@
 //
 // Unified single-ported memory model (iverilog-friendly)
 //
-// IMPORTANT: Asynchronous (combinational) read, synchronous write.
-// This matches the timing expectations of the current tiny_thumb_core.sv.
+// IMPORTANT: Synchronous read (1-cycle latency), synchronous write.
+// This models real FPGA block RAM behavior for synthesis compatibility.
 // -----------------------------------------------------------------------------
 module tiny_mem_model #(
   parameter int WORDS = 4096,
@@ -18,19 +18,39 @@ module tiny_mem_model #(
   input  wire [31:0] mem_addr,
   input  wire [31:0] mem_wdata,
   input  wire [3:0]  mem_wstrb,
-  output wire        mem_ready,
-  output wire [31:0] mem_rdata
+  output reg         mem_ready,
+  output reg  [31:0] mem_rdata
 );
 
   reg [31:0] mem [0:WORDS-1];
 
   wire [31:0] word_index = mem_addr >> 2;
 
-  // Always-ready handshake
-  assign mem_ready = mem_valid;
+  // Track if we were reading last cycle for 1-cycle read latency
+  reg was_reading;
 
-  // Asynchronous read: data reflects current address immediately
-  assign mem_rdata = mem[word_index];
+  // Synchronous read/write with proper handshake
+  always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      mem_rdata <= 32'd0;
+      mem_ready <= 1'b0;
+      was_reading <= 1'b0;
+    end else begin
+      if (mem_valid && mem_we) begin
+        // Writes complete immediately (same cycle)
+        mem_ready <= 1'b1;
+        was_reading <= 1'b0;
+      end else if (mem_valid && !mem_we) begin
+        // Reads take 1 cycle: latch data now, signal ready next cycle
+        mem_rdata <= mem[word_index];
+        mem_ready <= was_reading;  // Ready on 2nd consecutive cycle
+        was_reading <= 1'b1;
+      end else begin
+        mem_ready <= 1'b0;
+        was_reading <= 1'b0;
+      end
+    end
+  end
 
   // Zero-fill then load program
   integer i;
