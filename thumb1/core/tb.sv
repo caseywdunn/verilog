@@ -37,9 +37,9 @@ module tb;
     .mem_rdata (mem_rdata)
   );
 
-  // Memory
+  // Memory (8 KB to fit iCE40HX1K constraints: 2048 words × 32 bits = 64 Kbits)
   tiny_mem_model #(
-    .WORDS(4096),
+    .WORDS(2048),
     .INIT_HEX("prog.hex")
   ) mem (
     .clk       (clk),

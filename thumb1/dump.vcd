@@ -1,5 +1,5 @@
 $date
-	Wed Dec 24 10:32:53 2025
+	Wed Dec 24 10:35:21 2025
 $end
 $version
 	Icarus Verilog
@@ -126,7 +126,7 @@ $upscope $end
 $enddefinitions $end
 $comment Show the parameter values. $end
 $dumpall
-b1000000000000 y
+b100000000000 y
 b111000001110010011011110110011100101110011010000110010101111000 x
 b110 Q
 b10 P
@@ -157,7 +157,7 @@ b10100001 (
 $end
 #0
 $dumpvars
-b1000000000000 |
+b100000000000 |
 x{
 bx z
 b0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx w
