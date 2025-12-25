@@ -32,6 +32,7 @@ dump.vcd
 # Test symlinks (created in working directory)
 thumb1/prog.hex
 thumb1/expected.txt
+thumb1/de10nano/prog.hex
 
 # Waveform viewers
 *.gtkw

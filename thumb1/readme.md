@@ -130,7 +130,15 @@ Requirements:
 
 Quick start:
 ```bash
+# First, add Quartus tools to PATH (or source ~/.bashrc if already added)
+export PATH=$PATH:/path/to/quartus/bin
+# Example: export PATH=$PATH:/home/user/altera_lite/25.1std/quartus/bin
+
+# Select a test program to synthesize
 cd de10nano
+ln -sf ../tests/cmp_loop/prog.hex prog.hex
+
+# Synthesize and program
 make all             # Synthesize (~15 minutes)
 make program-sof     # Program FPGA via JTAG
 ```
