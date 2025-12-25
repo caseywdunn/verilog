@@ -29,6 +29,10 @@ incremental_db/
 sim.out
 dump.vcd
 
+# Test symlinks (created in working directory)
+thumb1/prog.hex
+thumb1/expected.txt
+
 # Waveform viewers
 *.gtkw
 *.sav

@@ -37,16 +37,19 @@ Exactly ONE program image (prog.hex) is executed per simulation run.
 
 ## How Tests Are Selected and Run
 
-Tests are selected using a symlink:
+Tests are selected using symlinks:
 
     ln -sf tests/<test-name>/prog.hex prog.hex
+    ln -sf tests/<test-name>/expected.txt expected.txt
 
-The CPU and memory always load "prog.hex" from the working directory.
-Switching the symlink switches the test.
+The CPU and memory load "prog.hex" from the working directory, and the
+testbench loads the expected signature from "expected.txt".
+Switching both symlinks switches the test.
 
 ### Example: run the CMP + loop test
 
     ln -sf tests/cmp_loop/prog.hex prog.hex
+    ln -sf tests/cmp_loop/expected.txt expected.txt
     iverilog -g2012 -o sim.out core/tb.sv core/tiny_thumb_core.sv core/tiny_mem_model.sv
     vvp sim.out
 
@@ -54,7 +57,7 @@ Expected output:
 
     PASS: mem[64] (addr 00000100) = 000000a1
 
-Only ONE prog.hex is ever executed per run. Tests are not concatenated.
+Only ONE test is executed per run. Tests are not concatenated.
 
 ------------------------------------------------------------------------------
 
@@ -71,10 +74,11 @@ Current convention:
 
 - Programs write a 32-bit signature to address 0x100
 - Word index: 0x100 >> 2 = 64
-- tb.sv checks mem[64] against EXPECTED_SIG
+- tb.sv loads the expected signature from expected.txt
+- Each test directory contains both prog.hex and expected.txt
 
-Changing tests typically requires updating EXPECTED_SIG in tb.sv
-(or later, automating this per-test).
+The signature is automatically loaded per-test via the expected.txt symlink,
+so switching tests requires no testbench modifications.
 
 ------------------------------------------------------------------------------
 
@@ -250,12 +254,12 @@ Expected signature:
 - Multiple directed tests supported
 - Synchronous memory model (1-cycle latency) implemented
 - FPGA synthesis verified on DE10-Nano board
+- Per-test signature automation (expected.txt files)
 
 ------------------------------------------------------------------------------
 
 ## Planned Next Steps
 
-- Per-test expected signature automation
 - Regression runner for all tests
 - Expand instruction coverage incrementally
 - Add more comprehensive test programs

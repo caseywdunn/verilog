@@ -19,11 +19,8 @@ module tb;
   localparam integer SIG_ADDR       = 32'h0000_0100;
   localparam integer SIG_WORD_INDEX = (SIG_ADDR >> 2); // 0x100 >> 2 = 64
 
-  // Set this depending on which test prog.hex is linked to.
-  // add_store test:   32'd10
-  // cmp_loop test:    32'h000000A1
-  // ldr_literal test: 32'h000000BC
-  localparam [31:0]  EXPECTED_SIG   = 32'h000000BC;
+  // Expected signature loaded from expected.txt alongside prog.hex
+  reg [31:0] EXPECTED_SIG [0:0];
 
   // DUT
   tiny_thumb_core dut (
@@ -61,6 +58,9 @@ module tb;
   end
 
   initial begin
+    // Load expected signature from file
+    $readmemh("expected.txt", EXPECTED_SIG);
+
     // Reset
     rst_n = 1'b0;
     repeat (5) @(posedge clk);
@@ -70,9 +70,9 @@ module tb;
     repeat (800) @(posedge clk);
 
     // Self-check signature
-    if (mem.mem[SIG_WORD_INDEX] !== EXPECTED_SIG) begin
+    if (mem.mem[SIG_WORD_INDEX] !== EXPECTED_SIG[0]) begin
       $display("FAIL: mem[%0d] (addr %h) = %h, expected %h",
-               SIG_WORD_INDEX, SIG_ADDR, mem.mem[SIG_WORD_INDEX], EXPECTED_SIG);
+               SIG_WORD_INDEX, SIG_ADDR, mem.mem[SIG_WORD_INDEX], EXPECTED_SIG[0]);
       $fatal(1);
     end else begin
       $display("PASS: mem[%0d] (addr %h) = %h",
