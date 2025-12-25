@@ -8,6 +8,14 @@ microarchitecture.
 The design is deliberately simple, explicit, and debuggable rather than
 fast or complete.
 
+
+------------------------------------------------------------------------------
+
+## Instruction Set
+
+**For instruction set documentation** including encoding formats, operand details, and implementation status, see **[instructions.md](architecture.md)**.
+
+
 ------------------------------------------------------------------------------
 
 ## Directory Layout (Current)
@@ -145,36 +153,6 @@ make program-sof     # Program FPGA via JTAG
 
 The design uses 8KB of block RAM and easily meets 50 MHz timing on Cyclone V.
 
-
-------------------------------------------------------------------------------
-
-## CPU Architecture Overview
-
-### Execution model
-
-The core is multi-cycle (not pipelined). Instructions execute over a small
-finite-state machine:
-
-  1. FETCH    Issue memory read for instruction at PC
-  2. WAITI    Wait for synchronous memory read (1-cycle latency)
-  3. DECODE   Decode opcode and latch operands/immediates
-  4. EXEC     Perform ALU operation or compute address/branch target
-  5. MEM      Issue data memory operation (LDR/STR only)
-  6. WAITM    Wait for synchronous memory read on loads
-  7. FETCH    Next instruction
-
-The PC advances by 2 bytes per instruction (Thumb semantics).
-
-Wait states (WAITI, WAITM) handle the 1-cycle read latency of synchronous
-block RAM, matching real FPGA memory timing.
-
-### Registers and flags
-
-- Registers R0–R15 stored internally
-- R15 mirrors PC for debug visibility
-- Flags: N, Z, C, V
-  - Updated by ADD, SUB, CMP, shifts, and logical ops as implemented
-
 ------------------------------------------------------------------------------
 
 ## Memory Model (Important)
@@ -190,35 +168,6 @@ This models real FPGA block RAM behavior for synthesis compatibility.
 
 The CPU FSM includes wait states (S_WAITI, S_WAITM) to handle the 1-cycle
 read latency, matching real block RAM timing behavior.
-
-------------------------------------------------------------------------------
-
-## Implemented Instruction Subset (Current)
-
-The core currently supports a minimal Thumb-1–style subset sufficient for
-directed bring-up tests:
-
-Immediate ALU:
-- MOVS Rd, #imm8
-- ADDS Rd, #imm8
-- SUBS Rd, #imm8
-- CMP  Rd, #imm8
-
-Shifts:
-- LSL Rd, Rm, #imm5
-- LSR Rd, Rm, #imm5
-
-Memory (word accesses only):
-- STR Rt, [Rn, #(imm5 << 2)]
-- LDR Rt, [Rn, #(imm5 << 2)]
-- LDR Rt, [PC, #(imm8 << 2)]   (literal load)
-
-Branches:
-- B label
-- B<cond> label   (EQ, NE, MI, PL)
-
-Optional ALU register group (enabled by parameter):
-- AND, EOR, ORR, CMP (register)
 
 ------------------------------------------------------------------------------
 
