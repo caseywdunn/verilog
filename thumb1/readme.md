@@ -59,6 +59,41 @@ Expected output:
 
 Only ONE test is executed per run. Tests are not concatenated.
 
+### Running all tests (regression suite)
+
+To run all tests automatically:
+
+    ./run_tests.sh
+
+The regression runner will:
+- Build the simulation once
+- Automatically run each test in tests/
+- Report pass/fail status for each test
+- Provide a summary with total pass/fail counts
+- Exit with non-zero status if any test fails
+
+Example output:
+
+    ========================================
+    Thumb-1 Core Regression Test Suite
+    ========================================
+
+    Building simulation...
+    Build successful
+
+    Running add_store... PASS
+    Running cmp_loop... PASS
+    Running ldr_literal... PASS
+
+    ========================================
+    Test Summary
+    ========================================
+    Passed: 3
+    Failed: 0
+    Total:  3
+
+    All tests passed!
+
 ------------------------------------------------------------------------------
 
 ## Testbench Behavior
@@ -255,12 +290,12 @@ Expected signature:
 - Synchronous memory model (1-cycle latency) implemented
 - FPGA synthesis verified on DE10-Nano board
 - Per-test signature automation (expected.txt files)
+- Automated regression test suite (run_tests.sh)
 
 ------------------------------------------------------------------------------
 
 ## Planned Next Steps
 
-- Regression runner for all tests
 - Expand instruction coverage incrementally
 - Add more comprehensive test programs
 
