@@ -1,0 +1,58 @@
+# Quartus Prime / Intel FPGA build products
+output_files/
+db/
+incremental_db/
+*.rpt
+*.summary
+*.qws
+*.sld
+*.jdi
+*.done
+*.smsg
+*.pin
+*.qdf
+*.bak
+*.sopcinfo
+.qsys_edit/
+*.pof
+*.rbf
+*.sof
+*.jic
+*.jam
+*.cdf
+*_pin_model_dump.txt
+
+# Simulation files
+*.vcd
+*.out
+*.vvp
+sim.out
+dump.vcd
+
+# Waveform viewers
+*.gtkw
+*.sav
+
+# Log files
+*.log
+transcript
+
+# Temporary and backup files
+*~
+*.swp
+*.swo
+.DS_Store
+*.tmp
+
+# Python cache (if using Python scripts)
+__pycache__/
+*.pyc
+
+# Editor directories
+.vscode/
+.idea/
+*.code-workspace
+
+# OS files
+Thumbs.db
+.directory

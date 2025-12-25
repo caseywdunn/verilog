@@ -78,6 +78,29 @@ Changing tests typically requires updating EXPECTED_SIG in tb.sv
 
 ------------------------------------------------------------------------------
 
+## FPGA Synthesis
+
+FPGA implementation for DE10-Nano is available in the `de10nano/` directory.
+
+See `de10nano/README.md` for complete synthesis and programming instructions.
+
+Requirements:
+- Intel Quartus Prime Lite (tested with 25.1, works with 18.0+)
+- DE10-Nano board with USB Blaster connection
+- Download: [Quartus Lite](https://www.intel.com/content/www/us/en/collections/products/fpga/software/downloads.html)
+
+Quick start:
+```bash
+cd de10nano
+make all             # Synthesize (~15 minutes)
+make program-sof     # Program FPGA via JTAG
+```
+
+The design uses 8KB of block RAM and easily meets 50 MHz timing on Cyclone V.
+
+
+------------------------------------------------------------------------------
+
 ## CPU Architecture Overview
 
 ### Execution model
@@ -86,14 +109,17 @@ The core is multi-cycle (not pipelined). Instructions execute over a small
 finite-state machine:
 
   1. FETCH    Issue memory read for instruction at PC
-  2. WAITI    Latch 16-bit instruction from memory
+  2. WAITI    Wait for synchronous memory read (1-cycle latency)
   3. DECODE   Decode opcode and latch operands/immediates
   4. EXEC     Perform ALU operation or compute address/branch target
   5. MEM      Issue data memory operation (LDR/STR only)
-  6. WAITM    Complete memory access (loads)
+  6. WAITM    Wait for synchronous memory read on loads
   7. FETCH    Next instruction
 
 The PC advances by 2 bytes per instruction (Thumb semantics).
+
+Wait states (WAITI, WAITM) handle the 1-cycle read latency of synchronous
+block RAM, matching real FPGA memory timing.
 
 ### Registers and flags
 
@@ -109,15 +135,14 @@ The PC advances by 2 bytes per instruction (Thumb semantics).
 tiny_mem_model.sv currently implements:
 
 - Unified instruction + data memory
-- Combinational (asynchronous) reads
+- **Synchronous reads** (1-cycle latency)
 - Synchronous writes with byte strobes
-- Always-ready handshake (mem_ready = mem_valid)
+- Proper ready/valid handshake protocol
 
-This matches the current core timing assumptions.
+This models real FPGA block RAM behavior for synthesis compatibility.
 
-NOTE:
-A realistic synchronous-read memory will require additional FSM states
-and is a planned future step.
+The CPU FSM includes wait states (S_WAITI, S_WAITM) to handle the 1-cycle
+read latency, matching real block RAM timing behavior.
 
 ------------------------------------------------------------------------------
 
@@ -207,6 +232,8 @@ Expected signature:
 - Conditional branching verified
 - Memory stores and loads verified
 - Multiple directed tests supported
+- Synchronous memory model (1-cycle latency) implemented
+- FPGA synthesis verified on DE10-Nano board
 
 ------------------------------------------------------------------------------
 
@@ -215,8 +242,8 @@ Expected signature:
 - LDR literal test (PC-relative addressing)
 - Per-test expected signature automation
 - Regression runner for all tests
-- Transition memory model to synchronous-read
 - Expand instruction coverage incrementally
+- Add more comprehensive test programs
 - (Later) pipelining or Harvard split
 
 ------------------------------------------------------------------------------

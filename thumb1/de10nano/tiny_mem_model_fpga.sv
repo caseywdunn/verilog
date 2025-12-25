@@ -1,14 +1,12 @@
 // -----------------------------------------------------------------------------
-// tiny_mem_model.sv
+// tiny_mem_model_fpga.sv
 //
-// Unified single-ported memory model (iverilog-friendly)
-//
-// IMPORTANT: Synchronous read (1-cycle latency), synchronous write.
-// This models real FPGA block RAM behavior for synthesis compatibility.
+// FPGA synthesis version of memory model for Quartus
+// Uses Quartus RAM initialization attributes
 // -----------------------------------------------------------------------------
 module tiny_mem_model #(
   parameter int WORDS = 4096,
-  parameter string INIT_HEX = ""
+  parameter string INIT_HEX = ""  // Ignored in FPGA version
 )(
   input  wire        clk,
   input  wire        rst_n,
@@ -22,7 +20,7 @@ module tiny_mem_model #(
   output reg  [31:0] mem_rdata
 );
 
-  reg [31:0] mem [0:WORDS-1];
+  (* ramstyle = "M10K" *) reg [31:0] mem [0:WORDS-1];
 
   wire [31:0] word_index = mem_addr >> 2;
 
@@ -30,14 +28,12 @@ module tiny_mem_model #(
   reg valid_r;
   reg we_r;
 
-  // Simple synchronous read - clean pattern for block RAM inference
+  // Block RAM read port - registered output pattern
   always @(posedge clk) begin
-    if (mem_valid && !mem_we) begin
-      mem_rdata <= mem[word_index];
-    end
+    mem_rdata <= mem[word_index];
   end
 
-  // Synchronous write with byte strobes
+  // Block RAM write port with byte enables
   always @(posedge clk) begin
     if (mem_valid && mem_we) begin
       if (mem_wstrb[0]) mem[word_index][ 7: 0] <= mem_wdata[ 7: 0];
@@ -45,6 +41,14 @@ module tiny_mem_model #(
       if (mem_wstrb[2]) mem[word_index][23:16] <= mem_wdata[23:16];
       if (mem_wstrb[3]) mem[word_index][31:24] <= mem_wdata[31:24];
     end
+  end
+
+  // Zero-fill for simulation
+  integer j;
+  initial begin
+    for (j = 0; j < WORDS; j = j + 1)
+      mem[j] = 32'd0;
+    $readmemh("prog.hex", mem);
   end
 
   // Ready signal: delayed version of valid for 1-cycle read latency
@@ -66,17 +70,6 @@ module tiny_mem_model #(
       end else begin
         mem_ready <= 1'b0;
       end
-    end
-  end
-
-  // Zero-fill then load program (simulation only)
-  integer i;
-  initial begin
-    for (i = 0; i < WORDS; i = i + 1)
-      mem[i] = 32'd0;
-
-    if (INIT_HEX != "") begin
-      $readmemh(INIT_HEX, mem);
     end
   end
 

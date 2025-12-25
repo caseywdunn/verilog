@@ -1,0 +1,4 @@
+# Quartus Project File for Tiny Thumb-1 Core on DE10-Nano
+# Generated for Terasic DE10-Nano Board
+
+PROJECT_REVISION = "de10nano_top"
