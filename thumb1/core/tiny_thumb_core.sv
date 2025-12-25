@@ -1,20 +1,49 @@
 // -----------------------------------------------------------------------------
 // tiny_thumb_core.sv  (iverilog-friendly, fixed instruction fetch)
 //
-// Minimal multi-cycle Thumb-1–like core for subset:
-//  - MOVS/CMP/ADDS/SUBS (imm8)
-//  - LSL/LSR (imm5) [imm5==0 => no shift, C unchanged by default]
-//  - STR/LDR word [Rn + (imm5<<2)]
-//  - LDR literal [Align(PC,4) + (imm8<<2)]
-//  - B, B<cond> (EQ/NE/MI/PL)
-// Optional ALU-reg subset: AND/EOR/ORR/CMP
-//
-// Unified memory interface (valid/ready).
-//
-// Key fix vs earlier version:
-//   - Correct halfword selection in S_WAITI by using a stable fetch_addr (blocking)
-//     rather than mem_addr (which updates after the clock edge with <=).
+// Minimal multi-cycle Thumb-1 core 
+
 // -----------------------------------------------------------------------------
+// Architecture overview
+// -----------------------------------------------------------------------------
+// This is intentionally a *multi-cycle* (non-pipelined) microarchitecture:
+//
+//   FETCH  -> request 16-bit instruction at PC over a 32-bit memory bus
+//   WAITI  -> wait for memory ready, select the correct halfword, latch IR
+//   DECODE -> decode IR into an internal op + operands
+//   EXEC   -> run ALU / compute effective address / decide branch target
+//   MEM    -> for loads/stores: issue data memory request
+//   WAITM  -> wait for data memory ready, then write-back
+//
+// The goal is clarity and hackability while implementing the full Thumb-1
+// instruction set. Each instruction is broken into simple phases rather than
+// building a pipeline up-front.
+//
+// Memory model assumption:
+//   - The external memory interface is 32-bit wide (mem_rdata/mem_wdata).
+//   - The core can request any byte address (mem_addr), but the memory model
+//     returns the aligned 32-bit word containing that address.
+//   - For Thumb instruction fetch, mem_addr[1] selects low/high halfword.
+//   - valid/ready handshake: the core asserts mem_valid until mem_ready.
+//
+// Register file model:
+//   - R[0:15] models the architectural register set:
+//       R0-R7   : low regs
+//       R8-R12  : high regs (not yet used by the minimal subset)
+//       R13     : SP (stack pointer)
+//       R14     : LR (link register / return address)
+//       R15     : PC (architectural view of program counter)
+//   - Internally we also keep a separate 32-bit PC register. This avoids
+//     accidental misuse of R[15] while bringing up fetch/branch logic.
+//     In S_DECODE we mirror PC into R[15] so instructions that read PC can
+//     use the architectural view.
+//
+// Flags:
+//   - N,Z,C,V are the standard ARM condition flags.
+//   - Only a subset of instructions update flags today; this will expand as
+//     additional Thumb-1 instructions are implemented.
+// -----------------------------------------------------------------------------
+
 module tiny_thumb_core #(
   parameter ENABLE_ALU_REG_GROUP = 1,
   parameter STRICT_THUMB_SHIFT32 = 0
@@ -34,15 +63,42 @@ module tiny_thumb_core #(
   // ----------------------------
   // Architectural state
   // ----------------------------
+  // ---------------------------------------------------------------------------
+  // Architectural state
+  // ---------------------------------------------------------------------------
+  // General-purpose register file. Eventually all Thumb-1 instructions should
+  // interact with these registers exactly as the ARM ARM specifies.
+  //
+  //  R[0:7]   : low registers (heavily used in Thumb-1 encodings)
+  //  R[8:12]  : high registers (used by "high register operations"/BX/etc.)
+  //  R[13]    : SP (stack pointer)
+  //  R[14]    : LR (link register) - holds return address for BL/BLX (future)
+  //  R[15]    : architectural PC view. Many Thumb encodings treat PC as
+  //             "current instruction address + 4" and/or require alignment.
+  //
+  // For bring-up, we keep a dedicated PC register as the *microarchitectural*
+  // next-fetch pointer. We mirror that value into R[15] at decode time so
+  // PC-relative addressing and future "read PC" behaviors can use R[15].
   reg [31:0] R [0:15];
+
+  // Microarchitectural PC used by the fetch state machine (byte address).
   reg [31:0] PC;
+
+  // Instruction register (latched 16-bit Thumb instruction).
   reg [15:0] IR;
 
+  // Condition flags (CPSR bits). Used by conditional branches today; later by
+  // IT blocks, ADC/SBC, comparisons, etc.
   reg N, Z, C, V;
 
   // ----------------------------
   // State machine encoding (no enums)
   // ----------------------------
+  // The core is "one outstanding memory transaction at a time".
+  // - S_FETCH/S_WAITI handle instruction fetch (read-only).
+  // - S_MEM/S_WAITM handle data accesses for LDR/STR variants.
+  // This structure makes it straightforward to extend for more instructions:
+  // you either (a) finish in S_EXEC, or (b) use S_MEM/S_WAITM for a memory op.
   localparam S_RESET  = 4'd0;
   localparam S_FETCH  = 4'd1;
   localparam S_WAITI  = 4'd2;
@@ -55,6 +111,10 @@ module tiny_thumb_core #(
   reg [3:0] st;
 
   // Decoded op encoding
+  // These are *internal* micro-ops, not architectural opcodes.
+  // The decode stage maps a 16-bit Thumb instruction into one of these ops
+  // plus explicit fields (d_rd/d_rn/d_rm/imm/etc.). This is much easier to grow
+  // than trying to execute directly from the raw instruction bits.
   localparam OP_NONE    = 4'd0;
   localparam OP_MOV_IMM = 4'd1;
   localparam OP_CMP_IMM = 4'd2;
@@ -79,11 +139,25 @@ module tiny_thumb_core #(
   reg [3:0] d_cond4;
   reg [3:0] d_aluop;
 
-  // Temporaries
+  // ---------------------------------------------------------------------------
+  // Internal temporaries / latches
+  // ---------------------------------------------------------------------------
+  // eff_addr:
+  //   Latched effective address for load/store style instructions. Computed in
+  //   S_EXEC and then used in S_MEM/S_WAITM so the address is stable across the
+  //   memory handshake.
   reg [31:0] eff_addr;
+
+  // load_data:
+  //   Temporary holding register for data coming back from memory before it is
+  //   written to the destination register in S_WAITM.
   reg [31:0] load_data;
 
-  // Stable fetch address for correct halfword selection
+  // fetch_addr:
+  //   Address used to *select the correct 16-bit halfword* out of a 32-bit read.
+  //   The fetch address must be stable between the request and the response.
+  //   (If mem_addr is updated with non-blocking assigns, using it directly can
+  //   select the wrong halfword when mem_ready arrives in the next cycle.)
   reg [31:0] fetch_addr;
 
   integer i;
@@ -187,11 +261,20 @@ module tiny_thumb_core #(
         // FETCH: request instruction word at PC (byte address)
         // ------------------------
         S_FETCH: begin
+          // Issue an *instruction fetch* read request.
+          //
+          // Note: PC is a byte address. Thumb instructions are 16-bit, so we
+          // advance the PC by 2 for the next fetch. The memory interface is
+          // still 32-bit, so the memory model will return the aligned word
+          // containing this halfword.
           mem_valid <= 1'b1;
           mem_we    <= 1'b0;
           mem_addr  <= PC;
 
-          // Thumb increments by 2 per instruction
+          // Spec behaviour: PC advances by 2 bytes per Thumb instruction fetch.
+          // We increment here (rather than after the response) so that:
+          //   - PC always points at "next instruction" after FETCH, and
+          //   - the current instruction address is recovered as (PC - 2).
           PC <= PC + 32'd2;
 
           st <= S_WAITI;
@@ -202,7 +285,15 @@ module tiny_thumb_core #(
         // Fixed: use stable fetch_addr for halfword selection.
         // ------------------------
         S_WAITI: begin
-          // Blocking assignment intentionally: use within this cycle
+          // Wait for instruction fetch to complete.
+          //
+          // Because PC was already incremented in S_FETCH, the address of the
+          // instruction being fetched is (PC - 2). We capture it into fetch_addr
+          // and use that to select the correct halfword from mem_rdata.
+          //
+          // IMPORTANT: fetch_addr is assigned with a *blocking* assignment so
+          // it is stable for halfword selection in the same cycle that mem_ready
+          // is observed.
           fetch_addr = (PC - 32'd2);
 
           mem_valid <= 1'b1;
@@ -521,7 +612,15 @@ module tiny_thumb_core #(
         default: st <= S_TRAP;
       endcase
 
-      // Mirror PC into R15 for debug visibility
+      // Keep architectural R15 in sync with the microarchitectural PC.
+      //
+      // Why do this at the *end* of the clocked block?
+      //   - Many Thumb encodings read PC with an implicit +4 and/or alignment.
+      //     Those semantics should be implemented in the decode/execute paths
+      //     for the relevant instructions (e.g., LDR literal, ADR, ADD(PC)).
+      //   - Here we simply expose the current next-fetch PC value in R[15] so
+      //     debug traces and future instruction implementations have an
+      //     architectural register to reference.
       R[15] <= PC;
     end
   end
