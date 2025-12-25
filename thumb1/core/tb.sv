@@ -20,9 +20,10 @@ module tb;
   localparam integer SIG_WORD_INDEX = (SIG_ADDR >> 2); // 0x100 >> 2 = 64
 
   // Set this depending on which test prog.hex is linked to.
-  // add_store test: 32'd10
-  // cmp_loop test:  32'h000000A1
-  localparam [31:0]  EXPECTED_SIG   = 32'h000000A1;
+  // add_store test:   32'd10
+  // cmp_loop test:    32'h000000A1
+  // ldr_literal test: 32'h000000BC
+  localparam [31:0]  EXPECTED_SIG   = 32'h000000BC;
 
   // DUT
   tiny_thumb_core dut (

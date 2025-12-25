@@ -223,6 +223,22 @@ Behavior:
 Expected signature:
 - mem[64] = 0x000000A1
 
+### ldr_literal
+
+Purpose:
+- Validate LDR literal (PC-relative load) instruction
+- Verify PC alignment to 4-byte boundary
+- Verify offset calculation: Align(PC, 4) + (imm8 << 2)
+
+Behavior:
+- Load literal value 0xBC from literal pool using PC-relative addressing
+- Build address 0x100 in r1
+- Store loaded value to [0x100]
+- halt
+
+Expected signature:
+- mem[64] = 0x000000BC
+
 ------------------------------------------------------------------------------
 
 ## Current Status
@@ -239,12 +255,10 @@ Expected signature:
 
 ## Planned Next Steps
 
-- LDR literal test (PC-relative addressing)
 - Per-test expected signature automation
 - Regression runner for all tests
 - Expand instruction coverage incrementally
 - Add more comprehensive test programs
-- (Later) pipelining or Harvard split
 
 ------------------------------------------------------------------------------
 
