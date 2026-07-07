@@ -55,22 +55,48 @@ produces `counter.vcd`.
 ## Viewing the waveform in VS Code
 
 Waveforms are viewed with a VS Code extension rather than GTKWave (see the
-top-level [readme.md](../readme.md) for why). Install the **Surfer** extension
-once:
+top-level [readme.md](../readme.md) for why).
 
-- Open the Extensions view (Cmd+Shift+X) and search for **Surfer**
-  (`surfer-project.surfer`), or install any other VCD viewer such as
-  **VaporView** (`lramseyer.vaporview`).
+### One-time setup: install the Surfer extension
 
-Then, to view this run:
+Install from the command line:
 
-1. Open `counter.vcd` from the VS Code file explorer. The extension opens it
-   in a waveform view.
-2. Add the signals `clk`, `rst_n`, and `count` from the `tb_counter` scope.
-3. Read the trace:
-   - `rst_n` is low for the first 20 ns, holding `count` at 0.
-   - After `rst_n` goes high, `count` increments 0 → 1 → 2 → … on each rising
-     clock edge, wrapping at 15.
+    code --install-extension surfer-project.surfer
+
+Or open the Extensions view (Cmd+Shift+X), search for **Surfer**
+(`surfer-project.surfer`), and click Install. (Any other VCD viewer such as
+**VaporView**, `lramseyer.vaporview`, works too.) Reload the window if
+prompted so the extension activates.
+
+### Opening the waveform
+
+Click `counter.vcd` in the VS Code file explorer. Surfer opens it as a
+waveform view. If it opens as plain text instead, right-click the file →
+**Open With…** → **Surfer**.
+
+### Adding signals
+
+Surfer shows two panels on the left — **Scopes** (the module hierarchy) and
+**Variables** (signals in the selected scope). They work as a pair:
+
+1. In the **Scopes** panel, click **`tb_counter`** (the top-level testbench
+   module). This is what populates the Variables panel — nothing appears there
+   until a scope is selected.
+2. In the **Variables** panel, you now see `clk`, `rst_n`, and `count`. Add
+   each to the waveform by selecting it and pressing **Enter** (or
+   double-clicking, or right-click → Add). Cmd-click to select all three and
+   add them together.
+3. If the waveform area looks empty after adding signals, press **`f`** (zoom
+   to fit) — the default zoom can leave the trace off-screen.
+
+### Reading the trace
+
+- `clk` toggles every 5 ns (10 ns period).
+- `rst_n` is low for the first 20 ns, holding `count` at 0.
+- After `rst_n` goes high, `count` increments 0 → 1 → 2 → … on each rising
+  clock edge, wrapping at 15.
+- `count` is a 4-bit bus; right-click it to change the radix (decimal / hex /
+  binary) if you want to read the value differently.
 
 Re-run the simulation and reopen (or reload) `counter.vcd` to see updated
 waveforms after any change.
